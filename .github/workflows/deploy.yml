@@ -1,0 +1,41 @@
+name: CI/CD to AWS EC2
+
+on:
+  push:
+    branches: [main] # Runs when you push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # GitHub-hosted runner
+
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js (skip if your app isn’t Node.js)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16" # Adjust to your Node.js version
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Build (if your app requires it)
+      - name: Build
+        run: npm run build --if-present # Skips if no build script
+
+      # Step 5: Deploy to EC2 via SSH
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }} # Your EC2 public IP
+          username: ${{ secrets.EC2_USERNAME }} # Usually 'ec2-user'
+          key: ${{ secrets.EC2_SSH_KEY }} # Your .pem key contents
+          script: |
+            cd /home/ec2-user/my-app
+            git pull origin main  # Pull the latest code
+            npm install  # Install dependencies
+            npm run start  # Start your app (adjust this command)
