@@ -12,16 +12,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Login to AWS ECR
-        run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.us-east-1.amazonaws.com
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-      - name: Build and Push Docker Image
-        run: |
-          docker build -t docker-ecs .
-          docker tag docker-ecs:latest <aws_account_id>.dkr.ecr.us-east-1.amazonaws.com/docker-ecs:latest
-          docker push <aws_account_id>.dkr.ecr.us-east-1.amazonaws.com/docker-ecs:latest
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy to ECS
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{steps.login-ecr.outputs.registry}}/docker-ecs:latest
+
+      - name: Deploy to Amazon ECS
         run: |
-          aws ecs update-service --cluster my-cluster --service my-service --force-new-deployment
+          aws ecs update-service --cluster docker-ecs-cluster --service docker-ecs-cluster --force-new-deployment
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ecs wait services-stable --cluster docker-ecs-cluster --services docker-ecs-cluster
+          echo "Deployment complete!"
